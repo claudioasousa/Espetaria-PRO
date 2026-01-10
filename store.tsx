@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { Order, OrderStatus, Product, Table, InventoryItem, Employee } from './types';
 
-const API_URL = '/api'; // Usando proxy do Vite ou caminho relativo
+const API_URL = '/api';
 
 interface AppState {
   orders: Order[];
@@ -14,6 +14,7 @@ interface AppState {
   apiConnected: boolean;
   addOrder: (order: Omit<Order, 'id' | 'timestamp' | 'status'>) => Promise<boolean>;
   updateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>;
+  updateTableStatus: (tableNumber: number, status: 'AVAILABLE' | 'OCCUPIED' | 'PENDING_PAYMENT') => Promise<void>;
   refreshData: () => Promise<void>;
 }
 
@@ -62,8 +63,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   useEffect(() => {
     refreshData();
-    const interval = setInterval(refreshData, 5000); // Polling agressivo para tempo real
+    const interval = setInterval(refreshData, 5000);
     return () => clearInterval(interval);
+  }, [refreshData]);
+
+  const updateTableStatus = useCallback(async (tableNumber: number, status: 'AVAILABLE' | 'OCCUPIED' | 'PENDING_PAYMENT') => {
+    try {
+      const res = await fetch(`${API_URL}/tables/${tableNumber}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      if (res.ok) await refreshData();
+    } catch (error) {
+      console.error("Erro ao atualizar mesa:", error);
+    }
   }, [refreshData]);
 
   const addOrder = useCallback(async (orderData: Omit<Order, 'id' | 'timestamp' | 'status'>) => {
@@ -106,7 +120,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   return (
     <AppContext.Provider value={{ 
       orders, products, tables, inventory, employees, loading, apiConnected,
-      addOrder, updateOrderStatus, refreshData
+      addOrder, updateOrderStatus, updateTableStatus, refreshData
     }}>
       {children}
     </AppContext.Provider>

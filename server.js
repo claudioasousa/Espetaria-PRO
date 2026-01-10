@@ -40,10 +40,20 @@ pool.getConnection()
 
 // --- API ROUTES ---
 
-// Insumos de estoque
+// Atualizar status da mesa diretamente
+app.patch('/api/tables/:number/status', async (req, res) => {
+  const { number } = req.params;
+  const { status } = req.body;
+  try {
+    await pool.query('UPDATE tables SET status = ? WHERE number = ?', [status, number]);
+    res.json({ message: `Mesa ${number} agora está ${status}` });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/inventory', async (req, res) => {
   try {
-    // Fix: Mapping DB columns to match the InventoryItem interface in types.ts
     const [rows] = await pool.query('SELECT id, name, current_quantity as quantity, unit_of_measure as unit, min_stock_level as minStock FROM inventory');
     res.json(rows);
   } catch (error) {
@@ -62,7 +72,7 @@ app.get('/api/products', async (req, res) => {
 
 app.get('/api/tables', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM tables');
+    const [rows] = await pool.query('SELECT * FROM tables ORDER BY number ASC');
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -93,6 +103,10 @@ app.post('/api/orders', async (req, res) => {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
+    
+    // Garantir que a mesa está ocupada
+    await connection.query('UPDATE tables SET status = "OCCUPIED" WHERE number = ?', [tableNumber]);
+
     await connection.query(
       'INSERT INTO orders (id, table_number, total_amount, status) VALUES (?, ?, ?, "PENDENTE")',
       [id, tableNumber, total]
@@ -130,7 +144,6 @@ app.patch('/api/orders/:id/status', async (req, res) => {
   }
 });
 
-// Redirecionar qualquer outra rota para o index.html (SPA)
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });

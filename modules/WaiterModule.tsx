@@ -4,13 +4,20 @@ import { useAppState } from '../store';
 import { Product, OrderItem } from '../types';
 
 const WaiterModule: React.FC = () => {
-  const { tables, products, addOrder } = useAppState();
+  const { tables, products, addOrder, updateTableStatus } = useAppState();
   const [selectedTable, setSelectedTable] = useState<number | null>(null);
   const [cart, setCart] = useState<OrderItem[]>([]);
   const [activeCategory, setActiveCategory] = useState<string>('Todos');
 
-  // Explicitly typing categories as string[] to fix the 'unknown' type error in the map function
   const categories: string[] = ['Todos', ...Array.from(new Set(products.map(p => p.category)))];
+
+  const handleTableSelection = async (tableNumber: number, currentStatus: string) => {
+    // Se a mesa estiver livre, avisamos o banco que ela está sendo aberta/ocupada agora
+    if (currentStatus === 'AVAILABLE') {
+      await updateTableStatus(tableNumber, 'OCCUPIED');
+    }
+    setSelectedTable(tableNumber);
+  };
 
   const addToCart = (product: Product) => {
     setCart(prev => {
@@ -32,19 +39,23 @@ const WaiterModule: React.FC = () => {
     });
   };
 
-  const submitOrder = () => {
+  const submitOrder = async () => {
     if (!selectedTable || cart.length === 0) return;
     
-    addOrder({
+    const success = await addOrder({
       tableNumber: selectedTable,
       waiterName: 'Operador Padrão',
       items: cart,
       total: cart.reduce((acc, curr) => acc + (curr.price * curr.quantity), 0)
     });
 
-    setCart([]);
-    setSelectedTable(null);
-    alert("🚀 Pedido enviado com sucesso para a cozinha!");
+    if (success) {
+      setCart([]);
+      setSelectedTable(null);
+      alert("🚀 Pedido enviado com sucesso para a cozinha!");
+    } else {
+      alert("❌ Erro ao enviar pedido. Verifique a conexão.");
+    }
   };
 
   const filteredProducts = activeCategory === 'Todos' ? products : products.filter(p => p.category === activeCategory);
@@ -69,7 +80,7 @@ const WaiterModule: React.FC = () => {
           <div className="flex justify-between items-end mb-8">
               <div>
                   <h3 className="text-2xl font-black text-gray-900">Selecione a Mesa</h3>
-                  <p className="text-gray-400 text-sm font-medium">Toque em uma mesa livre para iniciar</p>
+                  <p className="text-gray-400 text-sm font-medium">Toque em uma mesa livre para ocupar e abrir pedido</p>
               </div>
               <div className="flex gap-4">
                   <div className="flex items-center gap-2">
@@ -86,7 +97,7 @@ const WaiterModule: React.FC = () => {
             {tables.map(table => (
               <button
                 key={table.number}
-                onClick={() => setSelectedTable(table.number)}
+                onClick={() => handleTableSelection(table.number, table.status)}
                 className={`group p-6 rounded-3xl flex flex-col items-center justify-center transition-all aspect-square ${
                   table.status === 'OCCUPIED' 
                     ? 'bg-blue-600 text-white shadow-xl shadow-blue-100 scale-95' 
