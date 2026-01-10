@@ -1,0 +1,7 @@
+{
+  "name": "Espetaria Master Pro",
+  "description": "Sistema completo de gestão para espetarias com módulos para administração, garçons e cozinha, integrando pedidos em tempo real e controle de estoque.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
