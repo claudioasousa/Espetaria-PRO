@@ -15,6 +15,31 @@ const AdminModule: React.FC = () => {
     selectedTable ? orders.filter(o => o.tableNumber === selectedTable && o.status !== OrderStatus.PAID) : []
   , [selectedTable, orders]);
 
+  // Agrupa todos os itens de todos os pedidos da mesa para exibir na tabela
+  const tableConsumedItems = useMemo(() => {
+    const itemsMap = new Map<string, { name: string, quantity: number, price: number }>();
+    
+    activeOrdersForTable.forEach(order => {
+      order.items.forEach(item => {
+        const existing = itemsMap.get(item.productId);
+        if (existing) {
+          itemsMap.set(item.productId, {
+            ...existing,
+            quantity: existing.quantity + item.quantity
+          });
+        } else {
+          itemsMap.set(item.productId, {
+            name: item.name,
+            quantity: item.quantity,
+            price: Number(item.price)
+          });
+        }
+      });
+    });
+    
+    return Array.from(itemsMap.values());
+  }, [activeOrdersForTable]);
+
   // Soma o total de todos os pedidos daquela mesa
   const tableTotal = useMemo(() => 
     activeOrdersForTable.reduce((acc, curr) => acc + (Number(curr.total) || 0), 0)
@@ -37,7 +62,6 @@ const AdminModule: React.FC = () => {
     }
 
     try {
-      // Finaliza cada pedido individual daquela mesa
       const promises = activeOrdersForTable.map(order => 
         fetch(`/api/orders/${order.id}/status`, {
           method: 'PATCH',
@@ -56,7 +80,7 @@ const AdminModule: React.FC = () => {
       setAmountReceived('');
       setSelectedMethod(null);
       refreshData();
-      alert("Mesa finalizada com sucesso!");
+      alert("Venda finalizada com sucesso!");
     } catch (e) {
       alert("Erro ao finalizar venda.");
     }
@@ -82,27 +106,76 @@ const AdminModule: React.FC = () => {
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-8">
           {activeTab === 'stats' ? (
-            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100">
-              <h3 className="text-xl font-black mb-8">Mapa de Mesas</h3>
-              <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-4">
-                {tables.map(table => (
-                  <button
-                    key={table.number}
-                    onClick={() => table.status === 'OCCUPIED' && setSelectedTable(table.number)}
-                    className={`p-5 rounded-2xl flex flex-col items-center justify-center transition-all aspect-square border-2 ${
-                      table.status === 'OCCUPIED' 
-                        ? 'bg-blue-600 border-blue-400 text-white shadow-lg active:scale-95' 
-                        : 'bg-gray-50 border-gray-100 text-gray-300 opacity-40 cursor-default'
-                    }`}
-                  >
-                    <span className="text-2xl font-black">{table.number}</span>
-                    <span className="text-[9px] font-black uppercase mt-1 tracking-widest">CAIXA</span>
-                  </button>
-                ))}
+            <>
+              {/* MAPA DE MESAS */}
+              <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100">
+                <h3 className="text-xl font-black mb-8">Mapa de Mesas</h3>
+                <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-4">
+                  {tables.map(table => (
+                    <button
+                      key={table.number}
+                      onClick={() => table.status === 'OCCUPIED' && setSelectedTable(table.number)}
+                      className={`p-5 rounded-2xl flex flex-col items-center justify-center transition-all aspect-square border-2 ${
+                        table.status === 'OCCUPIED' 
+                          ? 'bg-blue-600 border-blue-400 text-white shadow-lg active:scale-95' 
+                          : 'bg-gray-50 border-gray-100 text-gray-300 opacity-40 cursor-default'
+                      } ${selectedTable === table.number ? 'ring-4 ring-blue-200 border-white' : ''}`}
+                    >
+                      <span className="text-2xl font-black">{table.number}</span>
+                      <span className="text-[9px] font-black uppercase mt-1 tracking-widest">DETALHES</span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+
+              {/* DETALHAMENTO DO CONSUMO (APARECE QUANDO MESA É SELECIONADA) */}
+              {selectedTable && activeOrdersForTable.length > 0 && (
+                <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100 animate-fadeIn overflow-hidden">
+                  <div className="flex justify-between items-center mb-8">
+                    <div>
+                      <h3 className="text-xl font-black">Extrato Detalhado</h3>
+                      <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Mesa {selectedTable}</p>
+                    </div>
+                    <button onClick={() => setSelectedTable(null)} className="text-gray-300 hover:text-gray-500 transition-colors">
+                      <i className="fas fa-times-circle text-2xl"></i>
+                    </button>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="border-b border-gray-100">
+                          <th className="pb-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Item</th>
+                          <th className="pb-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Qtd</th>
+                          <th className="pb-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Unitário</th>
+                          <th className="pb-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Subtotal</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {tableConsumedItems.map((item, index) => (
+                          <tr key={index} className="group hover:bg-gray-50 transition-colors">
+                            <td className="py-4 font-bold text-gray-800">{item.name}</td>
+                            <td className="py-4 text-center">
+                              <span className="bg-gray-100 px-3 py-1 rounded-lg text-xs font-black text-gray-600">{item.quantity}</span>
+                            </td>
+                            <td className="py-4 text-right text-sm text-gray-500">R$ {item.price.toFixed(2)}</td>
+                            <td className="py-4 text-right font-black text-gray-900">R$ {(item.price * item.quantity).toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t-2 border-gray-100">
+                          <td colSpan={3} className="pt-6 text-right font-black text-gray-400 uppercase text-xs tracking-widest">Total Consumido</td>
+                          <td className="pt-6 text-right font-black text-2xl text-blue-600 tracking-tighter">R$ {tableTotal.toFixed(2)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </>
           ) : (
             <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100">
                 <h3 className="text-xl font-black mb-8">Produtos em Estoque</h3>
@@ -121,7 +194,7 @@ const AdminModule: React.FC = () => {
           )}
         </div>
 
-        {/* COLUNA DO CAIXA - DESIGN FIEL À IMAGEM */}
+        {/* COLUNA DO CAIXA */}
         <div className="lg:col-span-1">
           <div className="sticky top-24 bg-white rounded-[2.5rem] shadow-2xl border border-gray-100 overflow-hidden flex flex-col min-h-[680px]">
             
@@ -138,13 +211,12 @@ const AdminModule: React.FC = () => {
                 <div className="bg-[#eff6ff] p-7 rounded-[1.5rem] border border-[#dbeafe]">
                   <h4 className="text-4xl font-black text-[#1d4ed8]">Mesa {selectedTable}</h4>
                   <p className="text-[11px] text-[#2563eb] font-bold uppercase tracking-widest mt-1">FECHAMENTO DE CONTA</p>
-                  <p className="text-[9px] text-gray-400 font-bold mt-2">{activeOrdersForTable.length} Pedidos acumulados</p>
                 </div>
 
                 {/* Valor Total Acumulado */}
                 <div className="space-y-4 pt-2">
                   <div className="flex justify-between items-end">
-                    <span className="text-xs font-black text-gray-400 uppercase tracking-widest pb-1">TOTAL ACUMULADO</span>
+                    <span className="text-xs font-black text-gray-400 uppercase tracking-widest pb-1">VALOR TOTAL</span>
                     <span className="text-5xl font-black text-[#111827] tracking-tighter">R$ {tableTotal.toFixed(2)}</span>
                   </div>
                   <div className="border-b border-dashed border-gray-200 w-full"></div>
@@ -224,10 +296,10 @@ const AdminModule: React.FC = () => {
             ) : (
               <div className="p-20 text-center flex-grow flex flex-col items-center justify-center space-y-6">
                 <div className="bg-gray-50 w-24 h-24 rounded-full flex items-center justify-center border-2 border-dashed border-gray-100">
-                    <i className="fas fa-hand-pointer text-4xl text-gray-200"></i>
+                    <i className="fas fa-file-invoice-dollar text-4xl text-gray-200"></i>
                 </div>
                 <p className="text-[11px] font-black uppercase tracking-[0.2em] text-gray-300 leading-relaxed max-w-[180px]">
-                    Selecione uma mesa ativa para processar o fechamento acumulado
+                    Selecione uma mesa ativa para ver os itens e fechar o caixa
                 </p>
               </div>
             )}
