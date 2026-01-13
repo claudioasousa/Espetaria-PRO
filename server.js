@@ -15,7 +15,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Servir arquivos estáticos do Build (Pasta dist)
 app.use(express.static(path.join(__dirname, 'dist')));
 
 const pool = mysql.createPool({
@@ -29,38 +28,7 @@ const pool = mysql.createPool({
   queueLimit: 0
 });
 
-pool.getConnection()
-  .then(conn => {
-    console.log('✅ Conectado ao MySQL com sucesso!');
-    conn.release();
-  })
-  .catch(err => {
-    console.error('❌ Erro ao conectar no MySQL:', err.message);
-  });
-
 // --- API ROUTES ---
-
-app.post('/api/inventory/:id/restock', async (req, res) => {
-  const { id } = req.params;
-  const { quantity } = req.body;
-  try {
-    await pool.query('UPDATE inventory SET current_quantity = current_quantity + ? WHERE id = ?', [quantity, id]);
-    res.json({ message: 'Estoque atualizado com sucesso' });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.patch('/api/tables/:number/status', async (req, res) => {
-  const { number } = req.params;
-  const { status } = req.body;
-  try {
-    await pool.query('UPDATE tables SET status = ? WHERE number = ?', [status, number]);
-    res.json({ message: `Mesa ${number} agora está ${status}` });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
 
 app.get('/api/inventory', async (req, res) => {
   try {
@@ -136,9 +104,12 @@ app.post('/api/orders', async (req, res) => {
 
 app.patch('/api/orders/:id/status', async (req, res) => {
   const { id } = req.params;
-  const { status } = req.body;
+  const { status, payment_method, amount_paid } = req.body;
   try {
-    await pool.query('UPDATE orders SET status = ? WHERE id = ?', [status, id]);
+    await pool.query(
+      'UPDATE orders SET status = ?, payment_method = ?, amount_paid = ? WHERE id = ?', 
+      [status, payment_method || null, amount_paid || null, id]
+    );
     if (status === 'PAGO') {
       const [order] = await pool.query('SELECT table_number FROM orders WHERE id = ?', [id]);
       if (order.length > 0) {

@@ -10,25 +10,27 @@ const WaiterModule: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState<string>('Todos');
   const [lastReadyCount, setLastReadyCount] = useState(0);
 
+  // Categorias únicas do cardápio para o filtro
   const categories: string[] = ['Todos', ...Array.from(new Set<string>(products.map(p => p.category)))];
 
-  // Identifica quais mesas estão com pedidos prontos para entrega
+  // Identifica quais mesas possuem pedidos com status 'PRONTO' (aguardando entrega)
   const readyTables = useMemo(() => {
     const readySet = new Set<number>();
     orders.forEach(order => {
       if (order.status === OrderStatus.READY) {
-        readySet.add(order.tableNumber);
+        readySet.add(Number(order.tableNumber));
       }
     });
     return readySet;
   }, [orders]);
 
-  // Alerta sonoro/visual simples quando um novo pedido fica pronto
+  // Efeito para detectar novos pedidos prontos e emitir alerta visual/log
   useEffect(() => {
     if (readyTables.size > lastReadyCount) {
-      // Aqui poderia disparar um window.navigator.vibrate se fosse mobile nativo
+      console.log("🔔 Novo pedido pronto para entrega!");
+      // Em dispositivos móveis, poderíamos usar window.navigator.vibrate([200, 100, 200])
       setLastReadyCount(readyTables.size);
-    } else if (readyTables.size < lastReadyCount) {
+    } else {
       setLastReadyCount(readyTables.size);
     }
   }, [readyTables.size, lastReadyCount]);
@@ -82,32 +84,34 @@ const WaiterModule: React.FC = () => {
   const filteredProducts = activeCategory === 'Todos' ? products : products.filter(p => p.category === activeCategory);
 
   return (
-    <div className="space-y-6 animate-fadeIn pb-24">
-      {/* Sistema de Alerta de Pedidos Prontos */}
+    <div className="space-y-6 animate-fadeIn pb-24 relative">
+      
+      {/* BANNER DE ALERTA FLUTUANTE - Aparece apenas quando há pedidos prontos */}
       {readyTables.size > 0 && (
-        <div className="bg-orange-500 text-white p-4 rounded-2xl shadow-lg shadow-orange-200 animate-bounce flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-                <i className="fas fa-bell text-xl animate-swing"></i>
-                <span className="font-black text-sm uppercase tracking-wider">
-                    {readyTables.size === 1 
-                        ? `Mesa ${Array.from(readyTables)[0]} pronta para entrega!` 
-                        : `${readyTables.size} mesas com pedidos prontos!`}
-                </span>
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[100] w-[90%] max-w-md">
+            <div className="bg-orange-500 text-white px-6 py-4 rounded-3xl shadow-2xl flex items-center justify-between animate-bounce border-4 border-white">
+                <div className="flex items-center gap-3">
+                    <i className="fas fa-bell text-2xl"></i>
+                    <div>
+                        <p className="font-black text-sm uppercase tracking-tighter">Pedido Pronto!</p>
+                        <p className="text-[10px] font-bold opacity-90">Mesa(s): {Array.from(readyTables).join(', ')}</p>
+                    </div>
+                </div>
+                <div className="bg-white text-orange-600 px-3 py-1 rounded-full text-[10px] font-black">ENTREGAR</div>
             </div>
-            <div className="bg-white/20 px-3 py-1 rounded-full text-[10px] font-black">ENTREGA IMEDIATA</div>
         </div>
       )}
 
       <header className="flex justify-between items-center bg-white p-5 rounded-3xl shadow-sm border border-gray-100">
         <div className="flex items-center gap-4">
             <div className="bg-gray-900 w-10 h-10 rounded-xl flex items-center justify-center text-white">
-                <i className="fas fa-mobile-alt text-sm"></i>
+                <i className="fas fa-hand-holding-heart text-sm"></i>
             </div>
-            <h2 className="text-xl font-black text-gray-900 tracking-tight">Garçom Digital</h2>
+            <h2 className="text-xl font-black text-gray-900 tracking-tight">Atendimento</h2>
         </div>
         <div className="flex items-center gap-3">
             <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Conectado</span>
+            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Sincronizado</span>
         </div>
       </header>
 
@@ -116,44 +120,37 @@ const WaiterModule: React.FC = () => {
           <div className="flex justify-between items-end mb-8">
               <div>
                   <h3 className="text-2xl font-black text-gray-900">Mapa de Mesas</h3>
-                  <p className="text-gray-400 text-sm font-medium">Laranja indica pedido pronto para levar</p>
-              </div>
-              <div className="flex gap-4">
-                  <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
-                      <span className="text-[10px] font-bold text-gray-400">PRONTO</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                      <span className="text-[10px] font-bold text-gray-400">EM PREPARO</span>
-                  </div>
+                  <p className="text-gray-400 text-sm font-medium">Laranja indica que o pedido saiu da cozinha</p>
               </div>
           </div>
-          <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-4">
+          
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-6">
             {tables.map(table => {
-              const isReady = readyTables.has(table.number);
+              const isReady = readyTables.has(Number(table.number));
               const isOccupied = table.status === 'OCCUPIED';
 
               return (
                 <button
                   key={table.number}
                   onClick={() => handleTableSelection(table.number, table.status)}
-                  className={`group p-6 rounded-3xl flex flex-col items-center justify-center transition-all aspect-square relative ${
+                  className={`group p-6 rounded-[2.5rem] flex flex-col items-center justify-center transition-all aspect-square relative ${
                     isReady 
-                      ? 'bg-orange-500 text-white shadow-xl shadow-orange-100 animate-pulse scale-105 z-10' 
+                      ? 'bg-orange-500 text-white shadow-2xl shadow-orange-200 animate-pulse scale-105 z-10 border-4 border-white' 
                       : isOccupied 
-                        ? 'bg-blue-600 text-white shadow-lg scale-95' 
-                        : 'bg-gray-50 border-2 border-transparent hover:border-orange-500 text-gray-900 active:scale-90'
+                        ? 'bg-blue-600 text-white shadow-lg' 
+                        : 'bg-gray-50 border-2 border-transparent hover:border-orange-500 text-gray-400 active:scale-95'
                   }`}
                 >
                   <span className="text-3xl font-black">{table.number}</span>
+                  
                   {isReady && (
-                      <div className="absolute -top-2 -right-2 bg-white text-orange-500 w-6 h-6 rounded-full flex items-center justify-center shadow-md">
-                          <i className="fas fa-concierge-bell text-[10px]"></i>
+                      <div className="absolute -top-3 -right-3 bg-white text-orange-500 w-10 h-10 rounded-full flex items-center justify-center shadow-xl border-2 border-orange-500">
+                          <i className="fas fa-concierge-bell text-sm"></i>
                       </div>
                   )}
-                  <span className="text-[9px] mt-1 font-black uppercase opacity-60">
-                    {isReady ? 'ENTREGAR' : isOccupied ? 'OCUPADA' : 'ABRIR'}
+
+                  <span className="text-[9px] mt-1 font-black uppercase opacity-60 tracking-widest">
+                    {isReady ? 'PRONTO' : isOccupied ? 'EM USO' : 'LIVRE'}
                   </span>
                 </button>
               );
@@ -187,7 +184,7 @@ const WaiterModule: React.FC = () => {
                   </div>
                   <div className="flex justify-between items-end relative z-10">
                     <div>
-                        <p className="text-[9px] font-bold text-gray-400 uppercase">Preço Un.</p>
+                        <p className="text-[9px] font-bold text-gray-400 uppercase">Preço</p>
                         <span className="text-xl font-black text-gray-900 tracking-tighter">R$ {Number(product.price).toFixed(2)}</span>
                     </div>
                     <div className="bg-orange-50 text-orange-500 w-12 h-12 rounded-2xl flex items-center justify-center group-hover:bg-orange-500 group-hover:text-white transition-all shadow-sm">
@@ -203,14 +200,14 @@ const WaiterModule: React.FC = () => {
             <div className="sticky top-24 bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col h-[75vh]">
               <div className="p-6 bg-orange-500 text-white">
                 <h3 className="font-black uppercase tracking-widest text-lg">Mesa {selectedTable}</h3>
-                <p className="text-orange-100 text-xs font-medium">Adicionar itens</p>
+                <p className="text-orange-100 text-xs font-medium">Itens no carrinho</p>
               </div>
               
               <div className="flex-grow p-6 overflow-y-auto space-y-4 no-scrollbar bg-gray-50/50">
                 {cart.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-gray-300">
                     <i className="fas fa-utensils text-3xl opacity-20 mb-4"></i>
-                    <p className="text-sm font-black uppercase tracking-widest opacity-40">Carrinho Vazio</p>
+                    <p className="text-sm font-black uppercase tracking-widest opacity-40">Adicione itens</p>
                   </div>
                 ) : (
                   cart.map(item => (
@@ -244,7 +241,7 @@ const WaiterModule: React.FC = () => {
                   </span>
                 </div>
                 <button disabled={cart.length === 0} onClick={submitOrder} className="w-full bg-gray-900 hover:bg-black disabled:bg-gray-200 disabled:text-gray-400 text-white font-black py-5 rounded-3xl shadow-xl transition-all active:scale-95 uppercase tracking-widest text-xs">
-                  Enviar Pedido
+                  Confirmar Pedido
                 </button>
               </div>
             </div>

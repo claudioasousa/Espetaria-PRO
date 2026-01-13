@@ -14,7 +14,8 @@ export enum PaymentMethod {
   PIX = 'PIX',
   DEBIT = 'DÉBITO',
   CREDIT = 'CRÉDITO',
-  MEAL_VOUCHER = 'ALIMENTAÇÃO'
+  MEAL_VOUCHER = 'ALIMENTAÇÃO',
+  MEAL_CARD = 'REFEIÇÃO'
 }
 
 export interface Product {

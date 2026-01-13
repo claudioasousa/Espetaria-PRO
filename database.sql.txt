@@ -1,135 +1,21 @@
--- ############################################################
--- SCRIPT DE CRIAÇÃO DO BANCO DE DATOS: ESPETARIA MASTER PRO
--- USUÁRIO SUGERIDO: root
--- SENHA SUGERIDA: qwe123
--- ############################################################
 
--- 1. Criação do Banco de Dados
-CREATE DATABASE IF NOT EXISTS espetaria_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE espetaria_db;
+-- EXECUTE ESTES COMANDOS NO SEU BANCO PARA ADICIONAR AS COLUNAS NECESSÁRIAS:
+ALTER TABLE orders ADD COLUMN payment_method VARCHAR(30);
+ALTER TABLE orders ADD COLUMN amount_paid DECIMAL(10, 2);
 
--- 2. Tabela de Funcionários (Configuração de Acesso)
-CREATE TABLE employees (
-    id VARCHAR(36) PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    role ENUM('ADMIN', 'WAITER', 'CHEF') NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- 3. Tabela de Categorias (Para organização do cardápio)
-CREATE TABLE categories (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(50) NOT NULL UNIQUE
-);
-
--- 4. Tabela de Produtos (Cardápio e Estoque Direto)
-CREATE TABLE products (
-    id VARCHAR(36) PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    price DECIMAL(10, 2) NOT NULL,
-    category_id INT,
-    stock_quantity INT DEFAULT 0,
-    FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
-);
-
--- 5. Tabela de Mesas
-CREATE TABLE tables (
-    number INT PRIMARY KEY,
-    status ENUM('AVAILABLE', 'OCCUPIED', 'PENDING_PAYMENT') DEFAULT 'AVAILABLE'
-);
-
--- 6. Tabela de Pedidos (Vendas)
+-- Estrutura completa para referência:
+/*
 CREATE TABLE orders (
     id VARCHAR(36) PRIMARY KEY,
     table_number INT NOT NULL,
     employee_id VARCHAR(36),
     status ENUM('PENDENTE', 'PREPARANDO', 'PRONTO', 'ENTREGUE', 'PAGO') DEFAULT 'PENDENTE',
+    payment_method VARCHAR(30),
+    amount_paid DECIMAL(10, 2),
     total_amount DECIMAL(10, 2) DEFAULT 0.00,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (table_number) REFERENCES tables(number),
     FOREIGN KEY (employee_id) REFERENCES employees(id)
 );
-
--- 7. Itens do Pedido (Detalhamento)
-CREATE TABLE order_items (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    order_id VARCHAR(36) NOT NULL,
-    product_id VARCHAR(36) NOT NULL,
-    quantity INT NOT NULL DEFAULT 1,
-    unit_price DECIMAL(10, 2) NOT NULL,
-    notes TEXT,
-    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
-    FOREIGN KEY (product_id) REFERENCES products(id)
-);
-
--- 8. Tabela de Insumos (Controle de Estoque Bruto)
-CREATE TABLE inventory (
-    id VARCHAR(36) PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    current_quantity DECIMAL(10, 2) NOT NULL,
-    unit_of_measure VARCHAR(10) NOT NULL, -- kg, un, l, etc
-    min_stock_level DECIMAL(10, 2) NOT NULL,
-    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-);
-
--- ############################################################
--- INSERÇÃO DE DADOS INICIAIS (SEEDING)
--- ############################################################
-
--- Categorias
-INSERT INTO categories (name) VALUES ('Espetos'), ('Acompanhamentos'), ('Bebidas');
-
--- Funcionários
-INSERT INTO employees (id, name, role) VALUES 
-('e1', 'Ricardo Santos', 'ADMIN'),
-('e2', 'Maria Silva', 'WAITER'),
-('e3', 'Carlos Chef', 'CHEF');
-
--- Produtos
-INSERT INTO products (id, name, price, category_id, stock_quantity) VALUES 
-('1', 'Espetinho de Carne', 12.00, 1, 100),
-('2', 'Espetinho de Frango', 10.00, 1, 80),
-('3', 'Espetinho de Queijo Coalho', 11.00, 1, 50),
-('4', 'Pão de Alho', 8.00, 2, 120),
-('5', 'Cerveja Lata', 7.00, 3, 200),
-('6', 'Refrigerante', 6.00, 3, 150);
-
--- Mesas (1 a 15)
-INSERT INTO tables (number, status) VALUES 
-(1, 'AVAILABLE'), (2, 'AVAILABLE'), (3, 'AVAILABLE'), (4, 'AVAILABLE'), (5, 'AVAILABLE'),
-(6, 'AVAILABLE'), (7, 'AVAILABLE'), (8, 'AVAILABLE'), (9, 'AVAILABLE'), (10, 'AVAILABLE'),
-(11, 'AVAILABLE'), (12, 'AVAILABLE'), (13, 'AVAILABLE'), (14, 'AVAILABLE'), (15, 'AVAILABLE');
-
--- Insumos de Estoque
-INSERT INTO inventory (id, name, current_quantity, unit_of_measure, min_stock_level) VALUES 
-('i1', 'Alcatra', 25.00, 'kg', 5.00),
-('i2', 'Carvão', 10.00, 'un', 3.00),
-('i3', 'Cerveja (engradado)', 15.00, 'un', 5.00);
-
--- ############################################################
--- REGRAS DE NEGÓCIO (LOGICA DE TRIGGERS SUGERIDA)
--- ############################################################
-
--- Trigger para atualizar status da mesa automaticamente quando um pedido é criado
-DELIMITER //
-CREATE TRIGGER after_order_insert
-AFTER INSERT ON orders
-FOR EACH ROW
-BEGIN
-    UPDATE tables SET status = 'OCCUPIED' WHERE number = NEW.table_number;
-END;
-//
-DELIMITER ;
-
--- Trigger para baixar estoque de produtos ao inserir itens no pedido
-DELIMITER //
-CREATE TRIGGER after_order_item_insert
-AFTER INSERT ON order_items
-FOR EACH ROW
-BEGIN
-    UPDATE products SET stock_quantity = stock_quantity - NEW.quantity 
-    WHERE id = NEW.product_id;
-END;
-//
-DELIMITER ;
+*/
