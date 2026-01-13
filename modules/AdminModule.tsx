@@ -10,44 +10,53 @@ const AdminModule: React.FC = () => {
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
   const [activeTab, setActiveTab] = useState<'stats' | 'inventory'>('stats');
 
-  const currentOrder = useMemo(() => 
-    selectedTable ? orders.find(o => o.tableNumber === selectedTable && o.status !== OrderStatus.PAID) : null
+  // Filtra todos os pedidos abertos da mesa selecionada
+  const activeOrdersForTable = useMemo(() => 
+    selectedTable ? orders.filter(o => o.tableNumber === selectedTable && o.status !== OrderStatus.PAID) : []
   , [selectedTable, orders]);
+
+  // Soma o total de todos os pedidos daquela mesa
+  const tableTotal = useMemo(() => 
+    activeOrdersForTable.reduce((acc, curr) => acc + (Number(curr.total) || 0), 0)
+  , [activeOrdersForTable]);
   
   const changeValue = useMemo(() => {
-    const total = currentOrder ? Number(currentOrder.total) : 0;
     const received = Number(amountReceived) || 0;
-    return received - total;
-  }, [amountReceived, currentOrder]);
+    return received - tableTotal;
+  }, [amountReceived, tableTotal]);
 
-  const handlePayment = async (orderId: string) => {
-    if (!selectedMethod) {
+  const handlePayment = async () => {
+    if (!selectedMethod || activeOrdersForTable.length === 0) {
         alert("Selecione a forma de pagamento");
         return;
     }
 
-    if (selectedMethod === PaymentMethod.CASH && Number(amountReceived) < (currentOrder?.total || 0)) {
+    if (selectedMethod === PaymentMethod.CASH && Number(amountReceived) < tableTotal) {
         alert("Valor recebido é insuficiente.");
         return;
     }
 
     try {
-      const res = await fetch(`/api/orders/${orderId}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          status: OrderStatus.PAID,
-          payment_method: selectedMethod,
-          amount_paid: selectedMethod === PaymentMethod.CASH ? Number(amountReceived) : currentOrder?.total
+      // Finaliza cada pedido individual daquela mesa
+      const promises = activeOrdersForTable.map(order => 
+        fetch(`/api/orders/${order.id}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            status: OrderStatus.PAID,
+            payment_method: selectedMethod,
+            amount_paid: selectedMethod === PaymentMethod.CASH ? Number(amountReceived) : tableTotal
+          })
         })
-      });
+      );
 
-      if (res.ok) {
-        setSelectedTable(null);
-        setAmountReceived('');
-        setSelectedMethod(null);
-        refreshData();
-      }
+      await Promise.all(promises);
+      
+      setSelectedTable(null);
+      setAmountReceived('');
+      setSelectedMethod(null);
+      refreshData();
+      alert("Mesa finalizada com sucesso!");
     } catch (e) {
       alert("Erro ao finalizar venda.");
     }
@@ -89,7 +98,7 @@ const AdminModule: React.FC = () => {
                     }`}
                   >
                     <span className="text-2xl font-black">{table.number}</span>
-                    <span className="text-[9px] font-black uppercase mt-1 tracking-widest">CONTA</span>
+                    <span className="text-[9px] font-black uppercase mt-1 tracking-widest">CAIXA</span>
                   </button>
                 ))}
               </div>
@@ -119,23 +128,24 @@ const AdminModule: React.FC = () => {
             {/* Header Dark */}
             <div className="p-8 bg-[#111827] text-white">
               <h3 className="text-2xl font-black tracking-tight uppercase leading-none">CAIXA</h3>
-              <p className="text-xs text-gray-400 mt-2 font-medium">Selecione uma mesa ocupada</p>
+              <p className="text-xs text-gray-400 mt-2 font-medium">Selecione uma mesa aberta</p>
             </div>
 
-            {currentOrder ? (
+            {selectedTable && activeOrdersForTable.length > 0 ? (
               <div className="p-8 space-y-6 flex-grow flex flex-col animate-fadeIn">
                 
                 {/* Card Mesa (Azul claro) */}
                 <div className="bg-[#eff6ff] p-7 rounded-[1.5rem] border border-[#dbeafe]">
-                  <h4 className="text-4xl font-black text-[#1d4ed8]">Mesa {currentOrder.tableNumber}</h4>
-                  <p className="text-[11px] text-[#2563eb] font-bold uppercase tracking-widest mt-1">AGUARDANDO PAGAMENTO</p>
+                  <h4 className="text-4xl font-black text-[#1d4ed8]">Mesa {selectedTable}</h4>
+                  <p className="text-[11px] text-[#2563eb] font-bold uppercase tracking-widest mt-1">FECHAMENTO DE CONTA</p>
+                  <p className="text-[9px] text-gray-400 font-bold mt-2">{activeOrdersForTable.length} Pedidos acumulados</p>
                 </div>
 
-                {/* Valor Total */}
+                {/* Valor Total Acumulado */}
                 <div className="space-y-4 pt-2">
                   <div className="flex justify-between items-end">
-                    <span className="text-xs font-black text-gray-400 uppercase tracking-widest pb-1">TOTAL</span>
-                    <span className="text-5xl font-black text-[#111827] tracking-tighter">R$ {Number(currentOrder.total).toFixed(2)}</span>
+                    <span className="text-xs font-black text-gray-400 uppercase tracking-widest pb-1">TOTAL ACUMULADO</span>
+                    <span className="text-5xl font-black text-[#111827] tracking-tighter">R$ {tableTotal.toFixed(2)}</span>
                   </div>
                   <div className="border-b border-dashed border-gray-200 w-full"></div>
                 </div>
@@ -190,11 +200,11 @@ const AdminModule: React.FC = () => {
                   </div>
                 )}
 
-                {/* Botão Finalizar (Laranja conforme imagem) */}
+                {/* Botão Finalizar */}
                 <div className="mt-auto pt-4">
                     <button 
-                        disabled={!selectedMethod || (selectedMethod === PaymentMethod.CASH && Number(amountReceived) < (currentOrder?.total || 0))}
-                        onClick={() => handlePayment(currentOrder.id)} 
+                        disabled={!selectedMethod || (selectedMethod === PaymentMethod.CASH && Number(amountReceived) < tableTotal)}
+                        onClick={handlePayment} 
                         className={`w-full font-black py-6 rounded-[1.2rem] shadow-xl transition-all active:scale-95 uppercase tracking-widest text-sm ${
                             selectedMethod 
                             ? 'bg-[#f97316] hover:bg-[#ea580c] text-white shadow-orange-100' 
@@ -217,7 +227,7 @@ const AdminModule: React.FC = () => {
                     <i className="fas fa-hand-pointer text-4xl text-gray-200"></i>
                 </div>
                 <p className="text-[11px] font-black uppercase tracking-[0.2em] text-gray-300 leading-relaxed max-w-[180px]">
-                    Selecione uma mesa ativa para processar o pagamento
+                    Selecione uma mesa ativa para processar o fechamento acumulado
                 </p>
               </div>
             )}
