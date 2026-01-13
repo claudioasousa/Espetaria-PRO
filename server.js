@@ -28,6 +28,61 @@ const pool = mysql.createPool({
   queueLimit: 0
 });
 
+// --- SISTEMA DE AUTO-MIGRATION ---
+const setupDatabase = async () => {
+  const connection = await pool.getConnection();
+  try {
+    console.log("🔍 Verificando estrutura do banco de dados...");
+
+    // 1. Criar tabelas financeiras se não existirem
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS cash_sessions (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        start_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        end_time TIMESTAMP NULL,
+        opening_balance DECIMAL(10,2) NOT NULL,
+        closing_balance DECIMAL(10,2) NULL,
+        status ENUM('OPEN', 'CLOSED') DEFAULT 'OPEN'
+      )
+    `);
+
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS cash_transactions (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        session_id INT NOT NULL,
+        type ENUM('APORTE', 'SANGRIA') NOT NULL,
+        amount DECIMAL(10,2) NOT NULL,
+        description TEXT,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (session_id) REFERENCES cash_sessions(id)
+      )
+    `);
+
+    // 2. Verificar e adicionar colunas na tabela 'orders'
+    const [columns] = await connection.query("SHOW COLUMNS FROM orders");
+    const columnNames = columns.map(c => c.Field);
+
+    if (!columnNames.includes('payment_method')) {
+      console.log("➕ Adicionando coluna 'payment_method' em 'orders'...");
+      await connection.query("ALTER TABLE orders ADD COLUMN payment_method VARCHAR(30)");
+    }
+
+    if (!columnNames.includes('amount_paid')) {
+      console.log("➕ Adicionando coluna 'amount_paid' em 'orders'...");
+      await connection.query("ALTER TABLE orders ADD COLUMN amount_paid DECIMAL(10, 2)");
+    }
+
+    console.log("✅ Banco de dados sincronizado com sucesso!");
+  } catch (e) {
+    console.error("❌ Erro na sincronização do banco:", e.message);
+  } finally {
+    connection.release();
+  }
+};
+
+// Executa a configuração ao iniciar o servidor
+setupDatabase();
+
 // --- API ROUTES ---
 
 app.get('/api/inventory', async (req, res) => {
@@ -59,9 +114,8 @@ app.get('/api/tables', async (req, res) => {
 
 app.get('/api/orders', async (req, res) => {
   try {
-    const [orders] = await pool.query('SELECT * FROM orders WHERE status != "PAGO" ORDER BY created_at DESC');
+    const [orders] = await pool.query('SELECT * FROM orders ORDER BY created_at DESC');
     const detailedOrders = await Promise.all(orders.map(async (order) => {
-      // Modificado para incluir c.name as category
       const [items] = await pool.query(`
         SELECT 
           oi.id, 
@@ -131,6 +185,56 @@ app.patch('/api/orders/:id/status', async (req, res) => {
       }
     }
     res.json({ message: 'Status atualizado' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- ROTAS FINANCEIRAS ---
+
+app.get('/api/cash/active', async (req, res) => {
+  try {
+    const [sessions] = await pool.query('SELECT * FROM cash_sessions WHERE status = "OPEN" LIMIT 1');
+    if (sessions.length === 0) return res.status(404).json({ error: 'Nenhum caixa aberto' });
+    
+    const [transactions] = await pool.query('SELECT * FROM cash_transactions WHERE session_id = ?', [sessions[0].id]);
+    res.json({ session: sessions[0], transactions });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/cash/open', async (req, res) => {
+  const { opening_balance } = req.body;
+  try {
+    const [active] = await pool.query('SELECT id FROM cash_sessions WHERE status = "OPEN"');
+    if (active.length > 0) return res.status(400).json({ error: 'Já existe um caixa aberto' });
+    
+    await pool.query('INSERT INTO cash_sessions (opening_balance, status) VALUES (?, "OPEN")', [opening_balance]);
+    res.status(201).json({ message: 'Caixa aberto com sucesso' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/cash/close/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query('UPDATE cash_sessions SET status = "CLOSED", end_time = CURRENT_TIMESTAMP WHERE id = ?', [id]);
+    res.json({ message: 'Caixa fechado com sucesso' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/cash/transaction', async (req, res) => {
+  const { session_id, type, amount, description } = req.body;
+  try {
+    await pool.query(
+      'INSERT INTO cash_transactions (session_id, type, amount, description) VALUES (?, ?, ?, ?)',
+      [session_id, type, amount, description]
+    );
+    res.status(201).json({ message: 'Lançamento registrado' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

@@ -5,6 +5,7 @@ import Layout from './components/Layout';
 import AdminModule from './modules/AdminModule';
 import WaiterModule from './modules/WaiterModule';
 import KitchenModule from './modules/KitchenModule';
+import FinanceModule from './modules/FinanceModule';
 import { Module } from './types';
 
 const MainApp: React.FC = () => {
@@ -15,6 +16,7 @@ const MainApp: React.FC = () => {
       case 'ADMIN': return <AdminModule />;
       case 'WAITER': return <WaiterModule />;
       case 'KITCHEN': return <KitchenModule />;
+      case 'FINANCE': return <FinanceModule />;
       default: return <AdminModule />;
     }
   };

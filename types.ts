@@ -1,5 +1,5 @@
 
-export type Module = 'ADMIN' | 'WAITER' | 'KITCHEN';
+export type Module = 'ADMIN' | 'WAITER' | 'KITCHEN' | 'FINANCE';
 
 export enum OrderStatus {
   PENDING = 'PENDENTE',
@@ -31,7 +31,7 @@ export interface OrderItem {
   name: string;
   quantity: number;
   price: number;
-  category?: string; // Categoria do produto para filtragem na cozinha
+  category?: string;
   notes?: string;
 }
 
@@ -43,6 +43,8 @@ export interface Order {
   status: OrderStatus;
   timestamp: Date;
   total: number;
+  payment_method?: PaymentMethod;
+  amount_paid?: number;
 }
 
 export interface Table {
@@ -63,4 +65,23 @@ export interface InventoryItem {
   quantity: number;
   unit: string;
   minStock: number;
+}
+
+// Novos tipos financeiros
+export interface CashSession {
+  id: number;
+  start_time: string;
+  end_time: string | null;
+  opening_balance: number;
+  closing_balance: number | null;
+  status: 'OPEN' | 'CLOSED';
+}
+
+export interface CashTransaction {
+  id: number;
+  session_id: number;
+  type: 'APORTE' | 'SANGRIA';
+  amount: number;
+  description: string;
+  timestamp: string;
 }

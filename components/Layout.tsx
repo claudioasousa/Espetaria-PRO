@@ -20,34 +20,42 @@ const Layout: React.FC<LayoutProps> = ({ currentModule, onModuleChange, children
           <h1 className="text-xl font-bold tracking-tight hidden md:block">Espetaria Pro</h1>
         </div>
 
-        <div className="flex flex-row md:flex-col flex-grow md:mt-6 px-2 md:px-4">
+        <div className="flex flex-row md:flex-col flex-grow md:mt-6 px-2 md:px-4 overflow-x-auto no-scrollbar">
           <button 
             onClick={() => onModuleChange('ADMIN')}
-            className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-3 p-3 rounded-lg transition-all ${currentModule === 'ADMIN' ? 'bg-orange-500 text-white' : 'hover:bg-gray-800 text-gray-400'}`}
+            className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-3 p-3 rounded-lg transition-all min-w-[80px] md:min-w-0 ${currentModule === 'ADMIN' ? 'bg-orange-500 text-white' : 'hover:bg-gray-800 text-gray-400'}`}
           >
             <i className="fas fa-chart-line"></i>
-            <span className="text-xs md:text-base font-medium">Admin</span>
+            <span className="text-[10px] md:text-base font-medium">Admin</span>
           </button>
           
           <button 
             onClick={() => onModuleChange('WAITER')}
-            className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-3 p-3 rounded-lg transition-all ${currentModule === 'WAITER' ? 'bg-orange-500 text-white' : 'hover:bg-gray-800 text-gray-400'}`}
+            className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-3 p-3 rounded-lg transition-all min-w-[80px] md:min-w-0 ${currentModule === 'WAITER' ? 'bg-orange-500 text-white' : 'hover:bg-gray-800 text-gray-400'}`}
           >
             <i className="fas fa-user-tie"></i>
-            <span className="text-xs md:text-base font-medium">Garçom</span>
+            <span className="text-[10px] md:text-base font-medium">Garçom</span>
           </button>
           
           <button 
             onClick={() => onModuleChange('KITCHEN')}
-            className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-3 p-3 rounded-lg transition-all ${currentModule === 'KITCHEN' ? 'bg-orange-500 text-white' : 'hover:bg-gray-800 text-gray-400'}`}
+            className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-3 p-3 rounded-lg transition-all min-w-[80px] md:min-w-0 ${currentModule === 'KITCHEN' ? 'bg-orange-500 text-white' : 'hover:bg-gray-800 text-gray-400'}`}
           >
             <i className="fas fa-utensils"></i>
-            <span className="text-xs md:text-base font-medium">Cozinha</span>
+            <span className="text-[10px] md:text-base font-medium">Cozinha</span>
+          </button>
+
+          <button 
+            onClick={() => onModuleChange('FINANCE')}
+            className={`flex-1 md:flex-none flex items-center justify-center md:justify-start gap-3 p-3 rounded-lg transition-all min-w-[80px] md:min-w-0 ${currentModule === 'FINANCE' ? 'bg-orange-500 text-white' : 'hover:bg-gray-800 text-gray-400'}`}
+          >
+            <i className="fas fa-wallet"></i>
+            <span className="text-[10px] md:text-base font-medium">Financeiro</span>
           </button>
         </div>
 
         <div className="hidden md:block p-6 mt-auto text-gray-500 text-xs">
-          v2.1.0 © 2024
+          v2.2.0 © 2024
         </div>
       </nav>
 
