@@ -31,6 +31,7 @@ export interface OrderItem {
   name: string;
   quantity: number;
   price: number;
+  category?: string; // Categoria do produto para filtragem na cozinha
   notes?: string;
 }
 

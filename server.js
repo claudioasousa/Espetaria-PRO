@@ -61,7 +61,21 @@ app.get('/api/orders', async (req, res) => {
   try {
     const [orders] = await pool.query('SELECT * FROM orders WHERE status != "PAGO" ORDER BY created_at DESC');
     const detailedOrders = await Promise.all(orders.map(async (order) => {
-      const [items] = await pool.query('SELECT oi.id, oi.product_id as productId, p.name, oi.quantity, CAST(oi.unit_price AS FLOAT) as price FROM order_items oi JOIN products p ON oi.product_id = p.id WHERE oi.order_id = ?', [order.id]);
+      // Modificado para incluir c.name as category
+      const [items] = await pool.query(`
+        SELECT 
+          oi.id, 
+          oi.product_id as productId, 
+          p.name, 
+          oi.quantity, 
+          CAST(oi.unit_price AS FLOAT) as price,
+          c.name as category
+        FROM order_items oi 
+        JOIN products p ON oi.product_id = p.id 
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE oi.order_id = ?
+      `, [order.id]);
+      
       return { 
         ...order, 
         items,

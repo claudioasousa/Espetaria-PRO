@@ -1,14 +1,27 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useAppState } from '../store';
-import { OrderStatus } from '../types';
+import { OrderStatus, OrderItem } from '../types';
 
 const KitchenModule: React.FC = () => {
   const { orders, updateOrderStatus } = useAppState();
   
-  const pendingOrders = orders.filter(o => 
-    o.status === OrderStatus.PENDING || o.status === OrderStatus.PREPARING
-  ).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  // Função auxiliar para identificar se o item é alimento
+  const isFood = (item: OrderItem) => item.category !== 'Bebidas';
+
+  // Filtra e prepara os pedidos para a cozinha
+  const kitchenOrders = useMemo(() => {
+    return orders
+      .filter(o => o.status === OrderStatus.PENDING || o.status === OrderStatus.PREPARING)
+      .map(order => ({
+        ...order,
+        // Filtra apenas os itens que não são bebidas para exibição
+        foodItems: order.items.filter(isFood)
+      }))
+      // Apenas mostra o card se houver pelo menos um item que não seja bebida
+      .filter(order => order.foodItems.length > 0)
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  }, [orders]);
 
   const getTimeElapsed = (timestamp: string | Date) => {
     const start = new Date(timestamp).getTime();
@@ -25,22 +38,22 @@ const KitchenModule: React.FC = () => {
             <div className="bg-orange-500 w-12 h-12 rounded-2xl flex items-center justify-center"><i className="fas fa-fire"></i></div>
             COZINHA
           </h2>
-          <p className="text-gray-400 mt-1">Fila de preparo em tempo real</p>
+          <p className="text-gray-400 mt-1">Fila de preparo (Apenas Alimentos)</p>
         </div>
         <div className="text-right">
-          <span className="text-5xl font-black text-orange-500">{pendingOrders.length}</span>
-          <p className="text-[10px] text-gray-500 font-black uppercase">Em Fila</p>
+          <span className="text-5xl font-black text-orange-500">{kitchenOrders.length}</span>
+          <p className="text-[10px] text-gray-500 font-black uppercase">Pedidos de Comida</p>
         </div>
       </header>
 
-      {pendingOrders.length === 0 ? (
+      {kitchenOrders.length === 0 ? (
         <div className="bg-white rounded-3xl p-32 text-center border-2 border-dashed border-gray-200">
           <i className="fas fa-check-circle text-gray-100 text-9xl mb-8"></i>
-          <h3 className="text-3xl font-black text-gray-300 uppercase">Sem pedidos agora</h3>
+          <h3 className="text-3xl font-black text-gray-300 uppercase">Sem comida para preparar</h3>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-          {pendingOrders.map(order => {
+          {kitchenOrders.map(order => {
             const minutes = getTimeElapsed(order.timestamp);
             const isLate = minutes > 15;
 
@@ -57,10 +70,13 @@ const KitchenModule: React.FC = () => {
                     </div>
 
                     <div className="p-6 space-y-4 flex-grow">
-                        {order.items.map((item, idx) => (
+                        {order.foodItems.map((item, idx) => (
                             <div key={idx} className="flex gap-4">
                                 <div className="bg-gray-900 text-white w-8 h-8 rounded-lg flex items-center justify-center font-black flex-shrink-0">{item.quantity}</div>
-                                <p className="font-bold text-lg text-gray-800 leading-tight">{item.name}</p>
+                                <div>
+                                    <p className="font-bold text-lg text-gray-800 leading-tight">{item.name}</p>
+                                    <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">{item.category}</p>
+                                </div>
                             </div>
                         ))}
                     </div>
