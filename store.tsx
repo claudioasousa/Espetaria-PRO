@@ -15,6 +15,7 @@ interface AppState {
   addOrder: (order: Omit<Order, 'id' | 'timestamp' | 'status'>) => Promise<boolean>;
   updateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>;
   updateTableStatus: (tableNumber: number, status: 'AVAILABLE' | 'OCCUPIED' | 'PENDING_PAYMENT') => Promise<void>;
+  restockInventory: (itemId: string, quantity: number) => Promise<void>;
   refreshData: () => Promise<void>;
 }
 
@@ -80,6 +81,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, [refreshData]);
 
+  const restockInventory = useCallback(async (itemId: string, quantity: number) => {
+    try {
+      const res = await fetch(`${API_URL}/inventory/${itemId}/restock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quantity })
+      });
+      if (res.ok) await refreshData();
+    } catch (error) {
+      console.error("Erro ao repor estoque:", error);
+    }
+  }, [refreshData]);
+
   const addOrder = useCallback(async (orderData: Omit<Order, 'id' | 'timestamp' | 'status'>) => {
     const newOrder = {
       ...orderData,
@@ -120,7 +134,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   return (
     <AppContext.Provider value={{ 
       orders, products, tables, inventory, employees, loading, apiConnected,
-      addOrder, updateOrderStatus, updateTableStatus, refreshData
+      addOrder, updateOrderStatus, updateTableStatus, restockInventory, refreshData
     }}>
       {children}
     </AppContext.Provider>

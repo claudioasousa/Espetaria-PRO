@@ -40,7 +40,17 @@ pool.getConnection()
 
 // --- API ROUTES ---
 
-// Atualizar status da mesa diretamente
+app.post('/api/inventory/:id/restock', async (req, res) => {
+  const { id } = req.params;
+  const { quantity } = req.body;
+  try {
+    await pool.query('UPDATE inventory SET current_quantity = current_quantity + ? WHERE id = ?', [quantity, id]);
+    res.json({ message: 'Estoque atualizado com sucesso' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.patch('/api/tables/:number/status', async (req, res) => {
   const { number } = req.params;
   const { status } = req.body;
@@ -54,7 +64,7 @@ app.patch('/api/tables/:number/status', async (req, res) => {
 
 app.get('/api/inventory', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT id, name, current_quantity as quantity, unit_of_measure as unit, min_stock_level as minStock FROM inventory');
+    const [rows] = await pool.query('SELECT id, name, CAST(current_quantity AS FLOAT) as quantity, unit_of_measure as unit, CAST(min_stock_level AS FLOAT) as minStock FROM inventory');
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -63,7 +73,7 @@ app.get('/api/inventory', async (req, res) => {
 
 app.get('/api/products', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT p.*, c.name as category FROM products p LEFT JOIN categories c ON p.category_id = c.id');
+    const [rows] = await pool.query('SELECT p.id, p.name, CAST(p.price AS FLOAT) as price, c.name as category, p.stock_quantity as stock FROM products p LEFT JOIN categories c ON p.category_id = c.id');
     res.json(rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -83,13 +93,13 @@ app.get('/api/orders', async (req, res) => {
   try {
     const [orders] = await pool.query('SELECT * FROM orders WHERE status != "PAGO" ORDER BY created_at DESC');
     const detailedOrders = await Promise.all(orders.map(async (order) => {
-      const [items] = await pool.query('SELECT oi.*, p.name FROM order_items oi JOIN products p ON oi.product_id = p.id WHERE oi.order_id = ?', [order.id]);
+      const [items] = await pool.query('SELECT oi.id, oi.product_id as productId, p.name, oi.quantity, CAST(oi.unit_price AS FLOAT) as price FROM order_items oi JOIN products p ON oi.product_id = p.id WHERE oi.order_id = ?', [order.id]);
       return { 
         ...order, 
         items,
         timestamp: order.created_at,
         tableNumber: order.table_number,
-        total: parseFloat(order.total_amount)
+        total: parseFloat(order.total_amount) || 0
       };
     }));
     res.json(detailedOrders);
@@ -103,10 +113,7 @@ app.post('/api/orders', async (req, res) => {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
-    
-    // Garantir que a mesa está ocupada
     await connection.query('UPDATE tables SET status = "OCCUPIED" WHERE number = ?', [tableNumber]);
-
     await connection.query(
       'INSERT INTO orders (id, table_number, total_amount, status) VALUES (?, ?, ?, "PENDENTE")',
       [id, tableNumber, total]

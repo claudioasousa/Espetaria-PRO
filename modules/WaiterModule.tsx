@@ -1,18 +1,39 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAppState } from '../store';
-import { Product, OrderItem } from '../types';
+import { Product, OrderItem, OrderStatus } from '../types';
 
 const WaiterModule: React.FC = () => {
-  const { tables, products, addOrder, updateTableStatus } = useAppState();
+  const { tables, products, orders, addOrder, updateTableStatus } = useAppState();
   const [selectedTable, setSelectedTable] = useState<number | null>(null);
   const [cart, setCart] = useState<OrderItem[]>([]);
   const [activeCategory, setActiveCategory] = useState<string>('Todos');
+  const [lastReadyCount, setLastReadyCount] = useState(0);
 
-  const categories: string[] = ['Todos', ...Array.from(new Set(products.map(p => p.category)))];
+  const categories: string[] = ['Todos', ...Array.from(new Set<string>(products.map(p => p.category)))];
+
+  // Identifica quais mesas estão com pedidos prontos para entrega
+  const readyTables = useMemo(() => {
+    const readySet = new Set<number>();
+    orders.forEach(order => {
+      if (order.status === OrderStatus.READY) {
+        readySet.add(order.tableNumber);
+      }
+    });
+    return readySet;
+  }, [orders]);
+
+  // Alerta sonoro/visual simples quando um novo pedido fica pronto
+  useEffect(() => {
+    if (readyTables.size > lastReadyCount) {
+      // Aqui poderia disparar um window.navigator.vibrate se fosse mobile nativo
+      setLastReadyCount(readyTables.size);
+    } else if (readyTables.size < lastReadyCount) {
+      setLastReadyCount(readyTables.size);
+    }
+  }, [readyTables.size, lastReadyCount]);
 
   const handleTableSelection = async (tableNumber: number, currentStatus: string) => {
-    // Se a mesa estiver livre, avisamos o banco que ela está sendo aberta/ocupada agora
     if (currentStatus === 'AVAILABLE') {
       await updateTableStatus(tableNumber, 'OCCUPIED');
     }
@@ -25,7 +46,7 @@ const WaiterModule: React.FC = () => {
       if (existing) {
         return prev.map(item => item.productId === product.id ? { ...item, quantity: item.quantity + 1 } : item);
       }
-      return [...prev, { productId: product.id, name: product.name, price: product.price, quantity: 1 }];
+      return [...prev, { productId: product.id, name: product.name, price: Number(product.price), quantity: 1 }];
     });
   };
 
@@ -46,15 +67,15 @@ const WaiterModule: React.FC = () => {
       tableNumber: selectedTable,
       waiterName: 'Operador Padrão',
       items: cart,
-      total: cart.reduce((acc, curr) => acc + (curr.price * curr.quantity), 0)
+      total: cart.reduce((acc, curr) => acc + (Number(curr.price) * curr.quantity), 0)
     });
 
     if (success) {
       setCart([]);
       setSelectedTable(null);
-      alert("🚀 Pedido enviado com sucesso para a cozinha!");
+      alert("🚀 Pedido enviado com sucesso!");
     } else {
-      alert("❌ Erro ao enviar pedido. Verifique a conexão.");
+      alert("❌ Erro ao enviar pedido.");
     }
   };
 
@@ -62,16 +83,31 @@ const WaiterModule: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-fadeIn pb-24">
+      {/* Sistema de Alerta de Pedidos Prontos */}
+      {readyTables.size > 0 && (
+        <div className="bg-orange-500 text-white p-4 rounded-2xl shadow-lg shadow-orange-200 animate-bounce flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+                <i className="fas fa-bell text-xl animate-swing"></i>
+                <span className="font-black text-sm uppercase tracking-wider">
+                    {readyTables.size === 1 
+                        ? `Mesa ${Array.from(readyTables)[0]} pronta para entrega!` 
+                        : `${readyTables.size} mesas com pedidos prontos!`}
+                </span>
+            </div>
+            <div className="bg-white/20 px-3 py-1 rounded-full text-[10px] font-black">ENTREGA IMEDIATA</div>
+        </div>
+      )}
+
       <header className="flex justify-between items-center bg-white p-5 rounded-3xl shadow-sm border border-gray-100">
         <div className="flex items-center gap-4">
-            <div className="bg-orange-500 w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-lg shadow-orange-200">
-                <i className="fas fa-hand-holding-heart text-sm"></i>
+            <div className="bg-gray-900 w-10 h-10 rounded-xl flex items-center justify-center text-white">
+                <i className="fas fa-mobile-alt text-sm"></i>
             </div>
-            <h2 className="text-xl font-black text-gray-900 tracking-tight">Terminal Mobile</h2>
+            <h2 className="text-xl font-black text-gray-900 tracking-tight">Garçom Digital</h2>
         </div>
         <div className="flex items-center gap-3">
             <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Sincronizado</span>
+            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Conectado</span>
         </div>
       </header>
 
@@ -79,59 +115,60 @@ const WaiterModule: React.FC = () => {
         <section className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
           <div className="flex justify-between items-end mb-8">
               <div>
-                  <h3 className="text-2xl font-black text-gray-900">Selecione a Mesa</h3>
-                  <p className="text-gray-400 text-sm font-medium">Toque em uma mesa livre para ocupar e abrir pedido</p>
+                  <h3 className="text-2xl font-black text-gray-900">Mapa de Mesas</h3>
+                  <p className="text-gray-400 text-sm font-medium">Laranja indica pedido pronto para levar</p>
               </div>
               <div className="flex gap-4">
                   <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-gray-200 rounded-full"></div>
-                      <span className="text-[10px] font-bold text-gray-400">LIVRE</span>
+                      <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+                      <span className="text-[10px] font-bold text-gray-400">PRONTO</span>
                   </div>
                   <div className="flex items-center gap-2">
                       <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                      <span className="text-[10px] font-bold text-gray-400">OCUPADA</span>
+                      <span className="text-[10px] font-bold text-gray-400">EM PREPARO</span>
                   </div>
               </div>
           </div>
           <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-4">
-            {tables.map(table => (
-              <button
-                key={table.number}
-                onClick={() => handleTableSelection(table.number, table.status)}
-                className={`group p-6 rounded-3xl flex flex-col items-center justify-center transition-all aspect-square ${
-                  table.status === 'OCCUPIED' 
-                    ? 'bg-blue-600 text-white shadow-xl shadow-blue-100 scale-95' 
-                    : 'bg-gray-50 border-2 border-transparent hover:border-orange-500 text-gray-900 active:scale-90'
-                }`}
-              >
-                <span className="text-3xl font-black">{table.number}</span>
-                <span className="text-[9px] mt-2 font-black uppercase tracking-widest opacity-60 group-hover:opacity-100 transition-opacity">
-                    {table.status === 'OCCUPIED' ? 'Ativa' : 'Abrir'}
-                </span>
-              </button>
-            ))}
+            {tables.map(table => {
+              const isReady = readyTables.has(table.number);
+              const isOccupied = table.status === 'OCCUPIED';
+
+              return (
+                <button
+                  key={table.number}
+                  onClick={() => handleTableSelection(table.number, table.status)}
+                  className={`group p-6 rounded-3xl flex flex-col items-center justify-center transition-all aspect-square relative ${
+                    isReady 
+                      ? 'bg-orange-500 text-white shadow-xl shadow-orange-100 animate-pulse scale-105 z-10' 
+                      : isOccupied 
+                        ? 'bg-blue-600 text-white shadow-lg scale-95' 
+                        : 'bg-gray-50 border-2 border-transparent hover:border-orange-500 text-gray-900 active:scale-90'
+                  }`}
+                >
+                  <span className="text-3xl font-black">{table.number}</span>
+                  {isReady && (
+                      <div className="absolute -top-2 -right-2 bg-white text-orange-500 w-6 h-6 rounded-full flex items-center justify-center shadow-md">
+                          <i className="fas fa-concierge-bell text-[10px]"></i>
+                      </div>
+                  )}
+                  <span className="text-[9px] mt-1 font-black uppercase opacity-60">
+                    {isReady ? 'ENTREGAR' : isOccupied ? 'OCUPADA' : 'ABRIR'}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </section>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-8">
-            <div className="flex items-center gap-4 overflow-x-auto no-scrollbar pb-4 -mx-4 px-4 sticky top-24 bg-gray-50 z-20">
-              <button 
-                onClick={() => setSelectedTable(null)}
-                className="flex-shrink-0 bg-white shadow-sm border border-gray-100 text-gray-700 w-12 h-12 rounded-2xl flex items-center justify-center active:scale-90 transition-transform"
-              >
+            <div className="flex items-center gap-4 overflow-x-auto no-scrollbar pb-4 sticky top-24 bg-gray-50 z-20">
+              <button onClick={() => setSelectedTable(null)} className="flex-shrink-0 bg-white shadow-sm border border-gray-100 text-gray-700 w-12 h-12 rounded-2xl flex items-center justify-center active:scale-90">
                 <i className="fas fa-chevron-left"></i>
               </button>
               {categories.map(cat => (
-                <button
-                  key={cat}
-                  onClick={() => setActiveCategory(cat)}
-                  className={`flex-shrink-0 px-8 py-4 rounded-2xl text-sm font-black transition-all ${
-                    activeCategory === cat 
-                        ? 'bg-orange-500 text-white shadow-xl shadow-orange-100' 
-                        : 'bg-white border border-gray-100 text-gray-500 hover:bg-gray-50'
-                  }`}
-                >
+                <button key={cat} onClick={() => setActiveCategory(cat)} className={`flex-shrink-0 px-8 py-4 rounded-2xl text-sm font-black transition-all ${activeCategory === cat ? 'bg-orange-500 text-white shadow-xl' : 'bg-white border border-gray-100 text-gray-500'}`}>
                   {cat.toUpperCase()}
                 </button>
               ))}
@@ -151,13 +188,12 @@ const WaiterModule: React.FC = () => {
                   <div className="flex justify-between items-end relative z-10">
                     <div>
                         <p className="text-[9px] font-bold text-gray-400 uppercase">Preço Un.</p>
-                        <span className="text-xl font-black text-gray-900 tracking-tighter">R$ {product.price.toFixed(2)}</span>
+                        <span className="text-xl font-black text-gray-900 tracking-tighter">R$ {Number(product.price).toFixed(2)}</span>
                     </div>
                     <div className="bg-orange-50 text-orange-500 w-12 h-12 rounded-2xl flex items-center justify-center group-hover:bg-orange-500 group-hover:text-white transition-all shadow-sm">
                       <i className="fas fa-plus text-sm"></i>
                     </div>
                   </div>
-                  <div className="absolute -right-4 -top-4 bg-gray-50 w-24 h-24 rounded-full opacity-50 scale-0 group-hover:scale-100 transition-transform"></div>
                 </button>
               ))}
             </div>
@@ -166,27 +202,22 @@ const WaiterModule: React.FC = () => {
           <div className="lg:col-span-1">
             <div className="sticky top-24 bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col h-[75vh]">
               <div className="p-6 bg-orange-500 text-white">
-                <div className="flex justify-between items-center mb-1">
-                    <h3 className="font-black uppercase tracking-widest text-lg">Mesa {selectedTable}</h3>
-                    <div className="bg-white/20 px-3 py-1 rounded-full text-[10px] font-black uppercase">Novo Pedido</div>
-                </div>
-                <p className="text-orange-100 text-xs font-medium">Itens na comanda temporária</p>
+                <h3 className="font-black uppercase tracking-widest text-lg">Mesa {selectedTable}</h3>
+                <p className="text-orange-100 text-xs font-medium">Adicionar itens</p>
               </div>
               
               <div className="flex-grow p-6 overflow-y-auto space-y-4 no-scrollbar bg-gray-50/50">
                 {cart.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-gray-300">
-                    <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center shadow-inner mb-6">
-                        <i className="fas fa-utensils text-3xl opacity-20"></i>
-                    </div>
-                    <p className="text-sm font-black uppercase tracking-widest opacity-40">Pedido vazio</p>
+                    <i className="fas fa-utensils text-3xl opacity-20 mb-4"></i>
+                    <p className="text-sm font-black uppercase tracking-widest opacity-40">Carrinho Vazio</p>
                   </div>
                 ) : (
                   cart.map(item => (
-                    <div key={item.productId} className="flex justify-between items-center gap-4 bg-white p-4 rounded-2xl shadow-sm border border-gray-100 group">
+                    <div key={item.productId} className="flex justify-between items-center gap-4 bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
                       <div className="flex-grow">
                         <p className="font-black text-gray-900 text-sm leading-none mb-1">{item.name}</p>
-                        <p className="text-[10px] text-orange-500 font-black uppercase">R$ {(item.price * item.quantity).toFixed(2)}</p>
+                        <p className="text-[10px] text-orange-500 font-black uppercase">R$ {(Number(item.price) * item.quantity).toFixed(2)}</p>
                       </div>
                       <div className="flex items-center gap-4">
                         <button onClick={() => removeFromCart(item.productId)} className="text-gray-300 hover:text-red-500 transition-colors">
@@ -207,18 +238,13 @@ const WaiterModule: React.FC = () => {
 
               <div className="p-6 bg-white border-t border-gray-100 space-y-6">
                 <div className="flex justify-between items-center px-2">
-                  <span className="text-gray-400 font-black text-xs uppercase tracking-widest">Valor Total</span>
+                  <span className="text-gray-400 font-black text-xs uppercase tracking-widest">Total</span>
                   <span className="text-3xl font-black text-gray-900 tracking-tighter">
-                    R$ {cart.reduce((acc, curr) => acc + (curr.price * curr.quantity), 0).toFixed(2)}
+                    R$ {cart.reduce((acc, curr) => acc + (Number(curr.price) * curr.quantity), 0).toFixed(2)}
                   </span>
                 </div>
-                <button
-                  disabled={cart.length === 0}
-                  onClick={submitOrder}
-                  className="w-full bg-gray-900 hover:bg-black disabled:bg-gray-200 disabled:text-gray-400 text-white font-black py-5 rounded-3xl shadow-xl transition-all active:scale-95 flex items-center justify-center gap-3 uppercase tracking-widest text-xs"
-                >
-                  <i className="fas fa-paper-plane"></i>
-                  Enviar à Cozinha
+                <button disabled={cart.length === 0} onClick={submitOrder} className="w-full bg-gray-900 hover:bg-black disabled:bg-gray-200 disabled:text-gray-400 text-white font-black py-5 rounded-3xl shadow-xl transition-all active:scale-95 uppercase tracking-widest text-xs">
+                  Enviar Pedido
                 </button>
               </div>
             </div>
